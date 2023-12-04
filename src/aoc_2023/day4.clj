@@ -35,38 +35,55 @@
                score)))
          (apply +))))
 
+(defn new-cards [all-cards [game score]]
+  (when game
+    (if (= 0 score)
+      1
+      (->> (range (inc game) (+ (inc game) score))
+           (map #(new-cards all-cards [% (all-cards %)]))
+           (reduce +)
+           (+ 1)))))
+
+;; 5923918
 (defn part2 []
-  (let [input (-> (slurp (io/resource "day4_1"))
+  (let [input (-> (slurp (io/resource "day4"))
                   (str/split #"\n"))
         input (mapv #(str/split % #"\n") input)
-        _ (def in* input)]
-    (loop
-      [cards input
-       score 0]
-      (if (empty? cards)
-        score
-        (let [game (-> (first cards)
-                       first
-                       (str/split #":")
-                       first
-                       (str/split #" ")
-                       last
-                       safe-parse-int)
-              _ (println "game " game)
-              numbers
-              (-> (first cards)
-                  first
-                  (str/split #":")
-                  last
-                  (str/split #"\|"))
-              winning-numbers (remove empty? (set (str/split (str/trim (first numbers)) #" ")))
-              players-numbers (remove empty? (set (str/split (str/trim (last numbers)) #" ")))
-              osumat (->> (set players-numbers)
-                          (map #((set winning-numbers) %))
-                          (remove nil?))
-              osumat-lkm (count osumat)
-              new-score (if (>= osumat-lkm 1)
-                          (range game (+ game osumat-lkm))
-                          nil)]
-          (recur (rest cards)
-                 (inc score)))))))
+        start (System/currentTimeMillis)
+        all-cards
+        (->> input
+             (mapv
+               (fn [row]
+                 (let [game (-> row
+                                first
+                                (str/split #":")
+                                first
+                                (str/split #" ")
+                                last
+                                safe-parse-int)
+                       numbers
+                       (-> row
+                           first
+                           (str/split #":")
+                           last
+                           (str/split #"\|"))
+                       winning-numbers (remove empty? (set (str/split (str/trim (first numbers)) #" ")))
+                       players-numbers (remove empty? (set (str/split (str/trim (last numbers)) #" ")))
+                       osumat (->> (set players-numbers)
+                                   (map #((set winning-numbers) %))
+                                   (remove nil?))
+                       osumat-lkm (count osumat)]
+                   [game osumat-lkm])))
+             (into {}))
+        foo
+        (loop
+          [cards all-cards
+           card-count 0]
+          (if (empty? cards)
+            card-count
+            (let [new-cards (new-cards all-cards (first cards))]
+              (recur (rest cards)
+                     (+ card-count new-cards)))))
+
+        _ (println "took" (- (System/currentTimeMillis) start))]
+    foo))
