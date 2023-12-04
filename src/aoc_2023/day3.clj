@@ -10,18 +10,37 @@
        nil))))
 
 (defn engine-part? [value]
-  (and (not (= "." value))
+  (and (not (nil? value))
+       (not (= "." value))
        (not (number? (safe-parse-int value)))))
 
-(defn part-number? [value]
-  (number? (safe-parse-int value)))
+(defn adjacents [[start end] row-id]
+  (let [start (max 0 (dec start))
+        end (min 140 (inc end))]
+    (concat
+      (if (>= row-id 1)
+        (mapv
+          (fn [v] [(dec row-id) v])
+          (range start end)))
+      (if (>= start 1)
+        [[row-id start]])
+      [[row-id (dec end)]]
+      (mapv
+        (fn [v] [(inc row-id) v])
+        (range start end)))))
 
-(defn adjacents [point]
-  [[]])
+(defn from [input row column]
+  (try
+    (-> (nth input row)
+        first
+        (clojure.string/split #"")
+        (nth column))
+    (catch Exception e
+      nil)))
 
-
+;539637
 (defn part1 []
-  (let [input (-> (slurp (io/resource "day3_1"))
+  (let [input (-> (slurp (io/resource "day3"))
                   (clojure.string/split #"\n"))
         input (->> input
                    (mapv #(clojure.string/split % #"\r")))]
@@ -29,16 +48,18 @@
          (map-indexed
            (fn [row-id row]
              (let [matcher (re-matcher #"\d+" (first row))
-                   end 0]
-               (loop [parts []
-                      end end]
-                 (println "end-index" end)
-                 (if (every? #(= % ".") (clojure.string/split (apply str (last (split-at end (first row)))) #""))
+                   smatcher (re-matcher #"\d+" (first row))]
+               (loop [parts []]
+                 (if (not (.find smatcher))
                    parts
                    (let [matchi (re-find matcher)
-                         _ (println "matchi " matchi)
                          start (.start matcher)
                          end (.end matcher)
-                         _ (println "s " start " e " end)]
-                     (recur (conj parts matchi)
-                            end))))))))))
+                         add (some #(engine-part? %)
+                                   (mapv
+                                     (fn [[row column]] (from input row column))
+                                     (adjacents [start end] row-id)))]
+                     (recur (if add (conj parts (safe-parse-int matchi)) parts))))))))
+         (remove empty?)
+         flatten
+         (apply +))))
