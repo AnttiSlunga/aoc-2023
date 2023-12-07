@@ -14,9 +14,6 @@
        (not (= "." value))
        (not (number? (safe-parse-int value)))))
 
-(defn gear? [value]
-  (= "*" value))
-
 (defn adjacents [[start end] row-id]
   (let [start (max 0 (dec start))
         end (min 140 (inc end))]
@@ -67,45 +64,58 @@
          flatten
          (apply +))))
 
+(defn gear-numbers [row]
+  (let [row-matcher  (re-matcher #"\d+" (apply str row))
+        row-matcher-2 (re-matcher #"\d+" (apply str row))
+        foundit (loop [founds []]
+                  (if (not (.find row-matcher-2))
+                    founds
+                    (let [number (re-find row-matcher)
+                          match-start (.start row-matcher)
+                          match-end (.end row-matcher)
+                          correct-number? (some (set (range match-start match-end)) (range 2 5))]
+                      (recur (if correct-number? (conj founds (safe-parse-int number)) founds)))))]
+    (flatten foundit)))
+
 (defn part2 []
-  (let [input (-> (slurp (io/resource "day3_1"))
+  (let [input (-> (slurp (io/resource "day3"))
                   (clojure.string/split #"\n"))
         input (->> input
                    (mapv #(clojure.string/split % #"\r")))]
     (->> input
          (map-indexed
            (fn [row-id row]
-             (let [matcher (re-matcher #"\d+" (first row))
-                   smatcher (re-matcher #"\d+" (first row))]
+             (let [matcher (re-matcher #"\*" (first row))
+                   smatcher (re-matcher #"\*" (first row))]
                (loop [parts []]
                  (if (not (.find smatcher))
                    parts
-                   (let [matchi (re-find matcher)
-                         start (.start matcher)
+                   (let [start (.start matcher)
                          end (.end matcher)
-                         add (some #(gear? %)
-                                   (mapv
-                                     (fn [[row column]] (from input row column))
-                                     (adjacents [start end] row-id)))
-                         gear-loc (->> (map
-                                         (fn [[r c]] (if (gear? (from input r c)) [r c]))
-                                         (adjacents [start end] row-id))
-                                       (remove nil?)
-                                       first)
-                         foo (if (and add gear-loc)
-                               (adjacents [(last gear-loc) (last gear-loc)] (first gear-loc)))
-                         bar (map
-                               (fn [[r c]] (from input r c))
-                               foo)
-                         baz (apply str bar)
-                         _ (println "gl " gear-loc " bar " (mapv
-                                                             (fn [v] (clojure.string/split v #"\."))
-                                                             (clojure.string/split baz #"\*")))
-                         countti (count (remove empty? (flatten (remove empty? (mapv
-                                                                                 (fn [v] (clojure.string/split v #"\."))
-                                                                                 (clojure.string/split baz #"\*"))))))
-                         _ (println "countti " countti)]
-                     (recur (if (>= countti 2) (conj parts (safe-parse-int matchi)) parts))))))))
+                         digi-start (max 0 (- start 3))
+                         digi-end (min 140 (+ end 3))
+                         row-range (range digi-start digi-end)
+                         upper-row (->> (mapv
+                                          (fn [[row column]] (from input row column))
+                                          (mapv (fn [v] [(dec row-id) v]) row-range))
+                                        gear-numbers
+                                        flatten)
+
+                         same-row (->> (mapv
+                                         (fn [[row column]] (from input row column))
+                                         (mapv (fn [v] [row-id v]) row-range))
+                                       gear-numbers
+                                       flatten)
+                         lower-row (->> (mapv
+                                          (fn [[row column]] (from input row column))
+                                          (mapv (fn [v] [(inc row-id) v]) row-range))
+                                        gear-numbers)
+                         ratio (if (= 2 (count (->> [upper-row same-row lower-row]
+                                                    flatten)))
+                                 (->> [upper-row same-row lower-row]
+                                      flatten
+                                      (apply *)))]
+                     (recur (if ratio (conj parts ratio) parts))))))))
          (remove empty?)
          flatten
          (apply +))))
