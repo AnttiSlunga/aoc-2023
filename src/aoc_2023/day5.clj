@@ -42,20 +42,42 @@
   (let [seed-to-soil
         (->> input
              (mapv (fn [value]
-                     (let [[destination source range-lenght] (mapv #(Long/parseLong %) (str/split (str/trim (first value)) #" "))]
+                     (let [[destination source range-lenght] value]
                        (if (and (>= seed source) (<= seed (+ source range-lenght)))
-                         [destination source range-lenght]))))
+                         [destination source]))))
              (remove nil?)
              flatten
-             (into []))
-        next-step (if (empty? seed-to-soil)
-                    seed
-                    (+ (- seed (nth seed-to-soil 1)) (first seed-to-soil)))]
-    next-step))
+             (into []))]
+    (if (empty? seed-to-soil)
+      seed
+      (+ (- seed (second seed-to-soil)) (first seed-to-soil)))))
+
+(defn find-destination-loop [input seed]
+  (let [seed-to-soil
+        (->>
+          (loop
+            [input input
+             vals []]
+            (if (empty? input)
+              vals
+              (let [[destination source range-lenght] (first input)]
+                (recur (rest input)
+                       (if (and (>= seed source) (<= seed (+ source range-lenght)))
+                         (conj vals [destination source])
+                         vals)))))
+          (remove nil?)
+          flatten
+          (into []))]
+    (if (empty? seed-to-soil)
+      seed
+      (+ (- seed (second seed-to-soil)) (first seed-to-soil)))))
 
 (defn read-resource [name]
-  (mapv #(clojure.string/split % #"\n")
-        (-> (slurp (io/resource name)) (clojure.string/split #"\n"))))
+  (->> (mapv #(clojure.string/split % #"\n")
+             (-> (slurp (io/resource name)) (clojure.string/split #"\n")))
+       (mapv (fn [value]
+               (let [[destination source range-lenght] (mapv #(Long/parseLong %) (clojure.string/split (clojure.string/trim (first value)) #" "))]
+                 [destination source range-lenght])))))
 
 (defn part1 []
   (let [seeds [858905075 56936593 947763189 267019426 206349064 252409474 660226451 92561087 752930744 24162055 75704321 63600948 3866217991 323477533 3356941271 54368890 1755537789 475537300 1327269841 427659734]
@@ -70,63 +92,22 @@
         location-id
         (mapv
           #(->> %
-               (find-destination seed-soil)
-               (find-destination soil-ferti)
-               (find-destination ferti-water)
-               (find-destination water-light)
-               (find-destination light-temp)
-               (find-destination temp-humi)
-               (find-destination humi-location))
+               (find-destination-loop seed-soil)
+               (find-destination-loop soil-ferti)
+               (find-destination-loop ferti-water)
+               (find-destination-loop water-light)
+               (find-destination-loop light-temp)
+               (find-destination-loop temp-humi)
+               (find-destination-loop humi-location))
           seeds)]
     (sort location-id)))
 
 (def test-seeds [[79 14] [55 13]])
 
-(defn find-destination2 [input [seed srange]]
-  (let [fou
-        (loop
-          [seeds [seed srange]
-           foundit []]
-          (if (empty? seeds)
-            foundit
-            (let [_ (println "seed " seeds)
-                  found-it
-                  (->> input
-                       (mapv (fn [value]
-                               (let [[seed srange] seeds
-                                     [destination source range-lenght] (mapv #(Long/parseLong %) (str/split (str/trim (first value)) #" "))]
-                                 (cond
-                                   (and (and (>= seed source) (<= seed (+ source range-lenght))) ;; osuus kokonaan rangeen
-                                        (and (>= (+ seed srange) source) (<= (+ seed srange) (+ source range-lenght))))
-                                   [[destination source] nil]
-
-                                   (and (and (>= seed source) (<= seed (+ source range-lenght))) ;; alku osuu, loppu yli
-                                        (> (+ seed srange) (+ source range-lenght)))
-                                   [[destination source] [(+ source range-lenght) (+ seed srange 1)]]
-
-                                   (and (< seed source)     ;; loppu osuu, alku alle
-                                        (and (>= (+ seed srange) source) (<= (+ seed srange) (+ source range-lenght))))
-                                   [[destination source] [seed (- source 1)]]
-
-                                   :default
-                                   nil))))
-                       (remove nil?))
-                  [fou seed] found-it
-                  _ (println "found it " found-it)
-                  _ (println "new seed " seed)]
-              (recur seed
-                     (conj foundit fou)))))
-        _ (println "fou" fou)
-        seed-to-soil
-        (->>  fou
-             (remove nil?)
-             flatten
-             (into []))
-        next-step (if (empty? seed-to-soil)
-                    seed
-                    (+ (- seed (nth seed-to-soil 1)) (first seed-to-soil)))]
-    next-step))
-
+;; 1 000 000 = 26097 ms
+;; yhteensä siemeniä 2037733040
+;; eli noi 2038 miljoonaa
+;; joten kestää 53185686 ms => 53 185 sekuntia => 886 min => noin 15 h
 (defn part2 []
   (let [seeds [[858905075 56936593]
                [947763189 267019426]
@@ -138,11 +119,9 @@
                [3356941271 54368890]
                [1755537789 475537300]
                [1327269841 427659734]]
-        seeda-with-ranges (->> [[858905075 56936593]]
+        seeda-with-ranges (->> seeds
                                (mapcat (fn [[start end]]
-                                         (range start (+ start end))))
-                               (take 100))
-        seeds test-seeds
+                                         (range start (+ start end)))))
         seed-soil (read-resource "d5_seed_to_soil")
         soil-ferti (read-resource "soil_to_ferti")
         ferti-water (read-resource "ferti_to_water")
@@ -156,13 +135,13 @@
         location-id
         (mapv
           #(->> %
-                (find-destination seed-soil)
-                (find-destination soil-ferti)
-                (find-destination ferti-water)
-                (find-destination water-light)
-                (find-destination light-temp)
-                (find-destination temp-humi)
-                (find-destination humi-location))
+                (find-destination-loop seed-soil)
+                (find-destination-loop soil-ferti)
+                (find-destination-loop ferti-water)
+                (find-destination-loop water-light)
+                (find-destination-loop light-temp)
+                (find-destination-loop temp-humi)
+                (find-destination-loop humi-location))
           seeda-with-ranges)
         _ (println "took" (- (System/currentTimeMillis) start))]
-    (sort location-id)))
+    (first (sort location-id))))
